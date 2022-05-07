@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>BF4 emblem code converter</title>
+        <link rel="preconnect" href="https://fonts.gstatic.com">
+        <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet"> 
+        <style type="text/css">
+            body {
+                font-family: 'Roboto', sans-serif;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>BF4 emblem code converter</h1>
+        <p>This tool converts Battlelog emblem definitions to console-pastable-code for the Companion app.</p>
+        <hr />
+        <div>
+            <h4>1. Paste your Battlelog emblem definition here (for example from BBLogs "Get current emblem code")</h4>
+            <textarea id="input" cols="100" rows="8"></textarea>
+            <p style="color: red;" id="error"></p>
+        </div>
+        <div>
+            <h4>2. Sign in to <a target="_blank" href="https://companion.battlefield.com/companion/emblems">the companion web app</a> and click the big <code>+</code> button</h4>
+        </div>
+        <div>
+            <h4>3. Open the developer console with <code>F12</code> or <code>Ctrl</code>+<code>Shift</code>+<code>I</code> and go to the <code>Console</code> tab</h4>
+        </div>
+        <div>
+            <h4>4. Paste the following output and hit <code>Enter</code></h4>
+            <textarea id="output" cols="100" rows="8" readonly style="color:gray; background-color: #eeeeee;;"></textarea><br/>
+            <button id="output-copy">Copy to clipboard</button>
+        </div>
+        <div>
+            <h4>5. Equip the emblem</h4>
+        </div>
+        <hr />
+        <p>&copy; Neutron 2021</p>
+        <script type="text/javascript">
+            const inputField = document.getElementById("input");
+            const errorField = document.getElementById("error");
+            const outputField = document.getElementById("output");
+            const copyBtn = document.getElementById("output-copy");
+
+            const output = (error, result) => {
+                if (error) {
+                    errorField.innerHTML = error + " - please check your input";
+                    outputField.value = "";
+                } else if (result) {
+                    errorField.innerHTML = "";
+                    outputField.value = result;
+                    outputField.focus();
+                    outputField.select();
+                } else {
+                    errorField.innerHTML = "";
+                    outputField.value = "";
+                }
+            }
+
+            const emblemLoadRe = /^emblem.emblem.load\((.*)\);$/i;
+
+            copyBtn.addEventListener("click", (ev) => {
+                outputField.focus();
+                outputField.select();
+                document.execCommand('copy');
+            });
+
+            inputField.addEventListener("input", (ev) => {
+                const value = ev.target.value;
+                if (value === "") {
+                    output(null, null);
+                    return;
+                }
+                // We will try multiple things to validate the code - first off, if it matches this regex we extract the "JSON" (actually JS objects but yeah, same thing really)
+                const match = emblemLoadRe.exec(value);
+                let json = match ? match[1] : value;
+                try {
+                    json = JSON.parse(json);
+                } catch (e) {
+                    output(match ? "Invalid JSON inside emblem load code" : "Invalid JSON provided", null);
+                    return;
+                }
+                if (!("objects" in json && Array.isArray(json["objects"]))) {
+                    output("Missing or invalid 'objects' key in JSON");
+                    return;
+                }
+
+                const companionCode = `var request=new XMLHttpRequest;request.open("POST","https://companion-api.battlefield.com/jsonrpc/web/api?Emblems.newPrivateEmblem",!0),request.onreadystatechange=function(){if(request.readyState==XMLHttpRequest.DONE){var e=JSON.parse(request.responseText);e.result?window.location.href=window.location.href.replace("/new","/edit/")+e.result.slot:alert("Error")}},request.setRequestHeader("Content-Type","application/json;charset=UTF-8"),request.setRequestHeader("X-GatewaySession",localStorage.gatewaySessionId),data={jsonrpc:"2.0",method:"Emblems.newPrivateEmblem",params:{data:'${JSON.stringify(json["objects"])}'},id:"00000000-0000-0000-0000-000000000000"},request.send(JSON.stringify(data));`
+                output(null, companionCode);
+            });
+        </script>
+    </body>
+</html>
